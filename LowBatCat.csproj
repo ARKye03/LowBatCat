@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <AssemblyName>lowbatcat</AssemblyName>
     <PublishAot>true</PublishAot>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

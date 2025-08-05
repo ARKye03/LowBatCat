@@ -15,8 +15,14 @@ A lightweight C# battery notification service for Linux that purrs when your bat
 
 ### Prerequisites
 
+**For running the AOT binary (normal usage):**
+
+- A `DBus Session`
+
+**For building from source (development only):**
+
 - .NET 9.0 SDK
-- `notify-send` (usually included with most Linux desktop environments)
+- A `DBus Session`
 
 ### Build from Source
 
@@ -31,7 +37,7 @@ dotnet build
 
 ```bash
 dotnet publish -c Release
-# Binary will be at: bin/Release/net9.0/linux-x64/publish/BatteryNotif
+# Binary will be at: bin/Release/net9.0/linux-x64/publish/LowBatCat
 ```
 
 ## Usage
@@ -39,27 +45,23 @@ dotnet publish -c Release
 ### Basic Usage
 
 ```bash
-# Run with default settings (25%, 20%, 10% thresholds, 30s interval)
-./BatteryNotif
-
-# Or with dotnet
-dotnet run
+lowbatcat --help
 ```
 
 ### Custom Configuration
 
 ```bash
 # Custom thresholds
-./BatteryNotif --thresholds 50 25 15 5
+./lowbatcat --thresholds 50 25 15 5
 
 # Custom check interval (every 60 seconds)
-./BatteryNotif --interval 60
+./lowbatcat --interval 60
 
 # Run as background daemon
-./BatteryNotif --daemon --thresholds 30 20 10
+./lowbatcat --daemon --thresholds 30 20 10
 
 # Combine options
-./BatteryNotif --daemon --interval 45 --thresholds 40 25 15 5
+./lowbatcat --daemon --interval 45 --thresholds 40 25 15 5
 ```
 
 ### Command Line Options
@@ -77,7 +79,7 @@ dotnet run
    - Only sends notifications when battery is discharging
    - Prevents notification spam by tracking sent alerts
    - Resets notification flags when charging begins
-4. **Desktop Integration**: Uses `notify-send` for native Linux notifications
+4. **Desktop Integration**: Uses `DBus` methods for native Linux notifications
 
 ## Example Output
 
@@ -96,7 +98,9 @@ Notification sent: Battery Low: 24%
 
 - Linux with `/sys/class/power_supply/` support
 - Desktop environment with notification support
-- .NET 9.0 runtime (or use AOT binary)
+- DBus session (for desktop notifications)
+
+**Note**: No .NET runtime required when using the AOT compiled binary!
 
 ## License
 
