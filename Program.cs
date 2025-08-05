@@ -38,10 +38,7 @@ internal class Program
         rootCommand.AddOption(intervalOption);
         rootCommand.AddOption(daemonOption);
 
-        rootCommand.SetHandler(async (thresholds, interval, daemon) =>
-        {
-            await RunBatteryMonitor(thresholds, interval, daemon);
-        }, thresholdsOption, intervalOption, daemonOption);
+        rootCommand.SetHandler(RunBatteryMonitor, thresholdsOption, intervalOption, daemonOption);
 
         return await rootCommand.InvokeAsync(args);
     }
@@ -59,7 +56,6 @@ internal class Program
         Console.WriteLine($"Monitoring battery: {BatteryName}");
         Console.WriteLine($"Thresholds: {string.Join(", ", thresholds.OrderByDescending(x => x))}%");
         Console.WriteLine($"Check interval: {interval} seconds");
-
 
         if (daemon)
         {
@@ -179,40 +175,118 @@ internal class Program
 
     private static async Task SendNotification(string title, string message)
     {
-        // Try notify-send command first
-        if (await TryNotifySend(title, message))
+        try
         {
+            await SendDBusNotification(title, message);
             Console.WriteLine($"Notification sent: {title}");
-            return;
         }
-
-        // Fallback to console notification
-        Console.WriteLine($"ALERT: {title} - {message}");
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending notification via DBus: {ex.Message}");
+            // Fallback to console notification
+            Console.WriteLine($"ALERT: {title} - {message}");
+        }
     }
 
-    private static async Task<bool> TryNotifySend(string title, string message)
+    private static async Task SendDBusNotification(string title, string message)
     {
         try
         {
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "notify-send",
-                    Arguments = $"--icon=battery-low --expire-time=5000 \"{title}\" \"{message}\"",
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                }
-            };
-
-            process.Start();
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0;
+            // Try gdbus first (more modern and reliable)
+            await TryGdbus(title, message);
         }
         catch
         {
-            return false;
+            try
+            {
+                // Fallback to dbus-send
+                await TryDbusSend(title, message);
+            }
+            catch
+            {
+                // Final fallback to busctl (systemd)
+                await TryBusctl(title, message);
+            }
         }
+    }
+
+    private static async Task TryGdbus(string title, string message)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "gdbus",
+                Arguments = $"call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications --method org.freedesktop.Notifications.Notify \"LowBatCat\" 0 \"battery-low\" \"{EscapeString(title)}\" \"{EscapeString(message)}\" [] {{}} 5000",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException($"gdbus failed: {error}");
+        }
+    }
+
+    private static async Task TryDbusSend(string title, string message)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "dbus-send",
+                Arguments = $"--session --dest=org.freedesktop.Notifications --type=method_call /org/freedesktop/Notifications org.freedesktop.Notifications.Notify string:LowBatCat uint32:0 string:battery-low string:\"{EscapeString(title)}\" string:\"{EscapeString(message)}\" array:string: dict:string:variant: int32:5000",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException($"dbus-send failed: {error}");
+        }
+    }
+
+    private static async Task TryBusctl(string title, string message)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "busctl",
+                Arguments = $"--user call org.freedesktop.Notifications /org/freedesktop/Notifications org.freedesktop.Notifications.Notify susssasa{{sv}}i LowBatCat 0 battery-low \"{EscapeString(title)}\" \"{EscapeString(message)}\" 0 0 5000",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        await process.WaitForExitAsync();
+
+        if (process.ExitCode != 0)
+        {
+            var error = await process.StandardError.ReadToEndAsync();
+            throw new InvalidOperationException($"busctl failed: {error}");
+        }
+    }
+
+    private static string EscapeString(string input)
+    {
+        return input.Replace("\"", "\\\"").Replace("\\", "\\\\");
     }
 }
