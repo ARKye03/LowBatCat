@@ -1,7 +1,7 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
 
-namespace BatteryNotif;
+namespace LowBatCat;
 
 internal class Program
 {

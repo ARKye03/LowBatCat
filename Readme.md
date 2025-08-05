@@ -21,7 +21,7 @@ A lightweight C# battery notification service for Linux that purrs when your bat
 ### Build from Source
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/ARKye03/LowBatCat
 cd LowBatCat
 dotnet restore
 dotnet build
@@ -81,7 +81,7 @@ dotnet run
 
 ## Example Output
 
-```
+```sh
 Starting Battery Notification Service...
 Monitoring battery: BAT0
 Thresholds: 25, 20, 10%
@@ -104,4 +104,4 @@ MIT License - Feel free to use and modify as needed.
 
 ---
 
-*Keep your battery happy and your cat purring! 🐱⚡*
+Keep your battery happy and your cat purring! 🐱⚡
