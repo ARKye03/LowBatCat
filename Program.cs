@@ -1,13 +1,14 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
 
-namespace BatteryNotifier;
+namespace BatteryNotif;
 
 internal class Program
 {
-    private static readonly Dictionary<int, bool> NotificationSent = new();
+    private static readonly Dictionary<int, bool> NotificationSent = [];
     private static string? BatteryPath;
     private static string? BatteryName;
+    internal static readonly int[] default_threshold = [25, 20, 10];
 
     static async Task<int> Main(string[] args)
     {
@@ -19,7 +20,7 @@ internal class Program
         {
             AllowMultipleArgumentsPerToken = true
         };
-        thresholdsOption.SetDefaultValue(new int[] { 25, 20, 10 });
+        thresholdsOption.SetDefaultValue(default_threshold);
 
         var intervalOption = new Option<int>(
             name: "--interval",
@@ -105,7 +106,7 @@ internal class Program
                              File.ReadAllText(Path.Combine(dir, "type")).Trim() == "Battery")
                 .ToList();
 
-            if (!batteries.Any())
+            if (batteries.Count == 0)
                 return false;
 
             BatteryPath = batteries.First();
