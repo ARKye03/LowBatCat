@@ -10,8 +10,6 @@
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
-    <PackageReference Include="Tmds.DBus" Version="0.21.2" />
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.20.0" />
   </ItemGroup>
 
 </Project>

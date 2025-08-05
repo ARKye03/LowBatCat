@@ -1,6 +1,5 @@
 ﻿using System.CommandLine;
 using System.Diagnostics;
-using Tmds.DBus.Protocol;
 
 namespace BatteryNotifier;
 
@@ -49,7 +48,7 @@ internal class Program
     private static async Task RunBatteryMonitor(int[] thresholds, int interval, bool daemon)
     {
         Console.WriteLine("Starting Battery Notification Service...");
-        
+
         if (!await InitializeBattery())
         {
             Console.WriteLine("No battery found or unable to access battery information.");
@@ -59,7 +58,7 @@ internal class Program
         Console.WriteLine($"Monitoring battery: {BatteryName}");
         Console.WriteLine($"Thresholds: {string.Join(", ", thresholds.OrderByDescending(x => x))}%");
         Console.WriteLine($"Check interval: {interval} seconds");
-        
+
 
         if (daemon)
         {
@@ -111,7 +110,7 @@ internal class Program
 
             BatteryPath = batteries.First();
             BatteryName = Path.GetFileName(BatteryPath);
-            
+
             // Verify we can read capacity
             var capacityFile = Path.Combine(BatteryPath, "capacity");
             if (!File.Exists(capacityFile))
@@ -141,8 +140,8 @@ internal class Program
             if (!int.TryParse(capacityText.Trim(), out var batteryLevel))
                 return;
 
-            var status = File.Exists(statusFile) 
-                ? (await File.ReadAllTextAsync(statusFile)).Trim() 
+            var status = File.Exists(statusFile)
+                ? (await File.ReadAllTextAsync(statusFile)).Trim()
                 : "Unknown";
 
             var isCharging = status.Equals("Charging", StringComparison.OrdinalIgnoreCase);
@@ -164,7 +163,7 @@ internal class Program
             {
                 if (batteryLevel <= threshold && !NotificationSent[threshold])
                 {
-                    await SendNotification($"Battery Low: {batteryLevel}%", 
+                    await SendNotification($"Battery Low: {batteryLevel}%",
                         $"Battery level has dropped to {batteryLevel}%. Consider charging soon.");
                     NotificationSent[threshold] = true;
                     break; // Only send one notification per check
@@ -179,39 +178,40 @@ internal class Program
 
     private static async Task SendNotification(string title, string message)
     {
+        // Try notify-send command first
+        if (await TryNotifySend(title, message))
+        {
+            Console.WriteLine($"Notification sent: {title}");
+            return;
+        }
+
+        // Fallback to console notification
+        Console.WriteLine($"ALERT: {title} - {message}");
+    }
+
+    private static async Task<bool> TryNotifySend(string title, string message)
+    {
         try
         {
-            using var connection = new Connection(Address.Session!);
-            await connection.ConnectAsync();
-
-            var proxy = new MessageBuilder()
+            var process = new Process
             {
-                MessageType = MessageType.MethodCall,
-                Destination = "org.freedesktop.Notifications",
-                Path = "/org/freedesktop/Notifications",
-                Interface = "org.freedesktop.Notifications",
-                Member = "Notify"
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "notify-send",
+                    Arguments = $"--icon=battery-low --expire-time=5000 \"{title}\" \"{message}\"",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
             };
 
-            proxy.WriteString("BatteryNotifier");  // app_name
-            proxy.WriteUInt32(0);                  // replaces_id
-            proxy.WriteString("battery-low");      // app_icon
-            proxy.WriteString(title);              // summary
-            proxy.WriteString(message);            // body
-            proxy.WriteArray<string>(new string[0]);          // actions
-            proxy.WriteDict<string, object>(new Dictionary<string, object>());   // hints
-            proxy.WriteInt32(5000);                // expire_timeout (5 seconds)
-
-            var request = proxy.BuildMessage();
-            await connection.CallMethodAsync(request);
-
-            Console.WriteLine($"Notification sent: {title}");
+            process.Start();
+            await process.WaitForExitAsync();
+            return process.ExitCode == 0;
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Failed to send notification: {ex.Message}");
-            // Fallback to console notification
-            Console.WriteLine($"ALERT: {title} - {message}");
+            return false;
         }
     }
 }
